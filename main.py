@@ -1,66 +1,111 @@
-import os
-from typing import Final
-from typing import Final
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from dotenv import load_dotenv
-import logging
+import configparser
+import requests
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-load_dotenv()
+# Load configuration
+config = configparser.ConfigParser()
+config.read("config/config.ini")
+bot_token = config["TelegramAPI"]["bot_token"]
+bot_name = config["TelegramAPI"]["bot_name"]
+stock_api_key = config["StockAPI"]["api_key"]
+BASE_URL = config["StockAPI"]["stock_url"]
 
-# Constants
-BOT_USERNAME: Final = os.getenv("BOT_NAME")
+# Start command handler
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"Welcome to {bot_name}! Please choose a stock:",
+                                    reply_markup=stock_menu_keyboard())
 
-# Logging configuration
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Main menu keyboard
+def stock_menu_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("AAPL", callback_data='AAPL')],
+        [InlineKeyboardButton("GOOGL", callback_data='GOOGL')],
+        [InlineKeyboardButton("MSFT", callback_data='MSFT')],
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-# START COMMAND
-async def start_cmd(update: Update, context):
-    await update.message.reply_text(f"Welcome to the {BOT_USERNAME}!")
+# Callback query handler
+async def stock_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    stock_symbol = query.data
+    await query.edit_message_text(f"Selected {stock_symbol}. Choose a duration:",
+                                  reply_markup=duration_menu_keyboard(stock_symbol))
 
-# HANDLE MESSAGE OF THE USER
-async def handle_message(update: Update, context):
-    message_type: str = update.message.chat.type
-    text: str = update.message.text
+# Duration menu keyboard
+def duration_menu_keyboard(stock_symbol):
+    keyboard = [
+        [InlineKeyboardButton("1 Day", callback_data=f'{stock_symbol}_1d')],
+        [InlineKeyboardButton("1 Week", callback_data=f'{stock_symbol}_1w')],
+        [InlineKeyboardButton("1 Month", callback_data=f'{stock_symbol}_1m')],
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-    logger.info("User (%s) in %s: '%s'", update.message.chat.id, message_type, text)
-
-    if message_type == "group":
-        if BOT_USERNAME in text:
-            new_text: str = text.replace(BOT_USERNAME, '').strip()
-            song_id: str = search_id(new_text)
-            response: str = await get_data(song_id)
-            logger.info('Bot: %s', response)
-            await update.message.reply_text(response)
+# Fetch and display stock data
+async def fetch_stock_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    stock_symbol, duration = query.data.split('_')
+    
+    if duration == '1d':
+        function = 'TIME_SERIES_INTRADAY'
+        interval = '60min'
+    elif duration == '1w':
+        function = 'TIME_SERIES_DAILY'
+    elif duration == '1m':
+        function = 'TIME_SERIES_DAILY'
+    
+    params = {
+        "function": function,
+        "symbol": stock_symbol,
+        "apikey": stock_api_key
+    }
+    
+    if duration == '1d':
+        params['interval'] = interval
+    
+    response = requests.get(BASE_URL, params=params)
+    data = response.json()
+    
+    if "Error Message" in data:
+        await query.edit_message_text("Invalid API call. Please try again later.")
         return
 
-    song_id: str = search_id(text)
-    response: str = await get_data(song_id)
-    logger.info('Bot: %s', response)
-    await update.message.reply_text(response)
+    if duration == '1d':
+        time_series = data['Time Series (60min)']
+    else:
+        time_series = data['Time Series (Daily)']
+    
+    recent_date = list(time_series.keys())[0]
+    recent_data = time_series[recent_date]
+    high = recent_data['2. high']
+    low = recent_data['3. low']
+    close = recent_data['4. close']
 
-# ERROR
-async def error(update: Update, context):
-    logger.error("Update %s caused error %s", update, context.error)
+    message = (f"Stock: {stock_symbol}\n"
+               f"Date: {recent_date}\n"
+               f"High: {high}\n"
+               f"Low: {low}\n"
+               f"Close: {close}")
+    
+    await query.edit_message_text(message)
+    await query.message.reply_text("Choose another stock:", reply_markup=stock_menu_keyboard())
 
-# MAIN
-if __name__ == '__main__':
-    TOKEN: Final = os.getenv("BOT_TOKEN")
+def main():
+    # Create the application
+    application = Application.builder().token(bot_token).build()
 
-    logger.info("Bot is starting...")
+    print("Bot is starting...")
 
-    app = Application.builder().token(TOKEN).build()
+    # Handlers
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CallbackQueryHandler(stock_selection, pattern='^(AAPL|GOOGL|MSFT)$'))
+    application.add_handler(CallbackQueryHandler(fetch_stock_data, pattern='^(AAPL|GOOGL|MSFT)_(1d|1w|1m)$'))
 
-    # COMMANDS
-    app.add_handler(CommandHandler("start", start_cmd))
+    # Run the bot
+    print("Polling...")
+    application.run_polling()
 
-    # MESSAGES
-    # app.add_handler(MessageHandler(filters.TEXT, handle_message))
-
-    # ERROR
-    app.add_error_handler(error)
-
-    # POLLING
-    logger.info("Polling...")
-    app.run_polling(poll_interval=3)
+if __name__ == "__main__":
+    main()
