@@ -187,13 +187,12 @@ def main():
     telegram_app.add_handler(CallbackQueryHandler(fetch_stock_data, pattern='^(' + '|'.join(STOCK_SYMBOLS) + '|[A-Z]+)_(1min|5min|15min|30min|60min|daily|weekly|monthly)$'))
     telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_custom_symbol))
 
+    # Start the bot polling in a separate thread or as a background task
+    telegram_app.run_polling()
+
     # Start the Flask server
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
-    # Run the bot
-    print("Polling...")
-    telegram_app.run_polling()
 
 if __name__ == "__main__":
     main()
