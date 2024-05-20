@@ -24,7 +24,7 @@ DEFAULT_STOCKS = [
     "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA",
     "JPM", "GS", "BAC", "WFC", "C", "JNJ", "PFE", "MRK", "UNH",
     "ABBV", "PG", "KO", "PEP", "NKE", "WMT", "XOM", "CVX", "COP",
-    "BP", "RDS.A", "RDS.B", "DUK", "D", "NEE", "SO", "ED", "HD",
+    "BP", "DUK", "D", "NEE", "SO", "ED", "HD",
     "COST", "TGT", "T", "VZ", "CMCSA", "DIS", "NFLX"
 ]
 
