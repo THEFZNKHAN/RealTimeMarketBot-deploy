@@ -168,31 +168,26 @@ async def handle_custom_symbol(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"Selected custom stock: {custom_symbol}. Choose a duration:",
                                         reply_markup=duration_menu_keyboard(custom_symbol))
 
-def main():
-    # Create the Flask application
-    app = Flask(__name__)
+app = Flask(__name__)
 
-    @app.route('/')
-    def home():
-        return "The bot is running!"
+@app.route('/')
+def home():
+    return "The bot is running!"
 
-    # Create the Telegram bot application
-    telegram_app = Application.builder().token(bot_token).build()
+telegram_app = Application.builder().token(bot_token).build()
 
-    print("Bot is starting...")
+print("Bot is starting...")
 
-    # Handlers
-    telegram_app.add_handler(CommandHandler('start', start))
-    telegram_app.add_handler(CallbackQueryHandler(stock_selection, pattern='^(' + '|'.join(STOCK_SYMBOLS) + '|custom_symbol)$'))
-    telegram_app.add_handler(CallbackQueryHandler(fetch_stock_data, pattern='^(' + '|'.join(STOCK_SYMBOLS) + '|[A-Z]+)_(1min|5min|15min|30min|60min|daily|weekly|monthly)$'))
-    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_custom_symbol))
+# Handlers
+telegram_app.add_handler(CommandHandler('start', start))
+telegram_app.add_handler(CallbackQueryHandler(stock_selection, pattern='^(' + '|'.join(STOCK_SYMBOLS) + '|custom_symbol)$'))
+telegram_app.add_handler(CallbackQueryHandler(fetch_stock_data, pattern='^(' + '|'.join(STOCK_SYMBOLS) + '|[A-Z]+)_(1min|5min|15min|30min|60min|daily|weekly|monthly)$'))
+telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_custom_symbol))  
 
+if __name__ == "__main__":
     # Start the bot polling in a separate thread or as a background task
     telegram_app.run_polling()
 
     # Start the Flask server
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
-if __name__ == "__main__":
-    main()
