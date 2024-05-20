@@ -45,7 +45,7 @@ A Telegram bot for fetching and displaying real-time stock market data. Users ca
     ```
 5. **Running the Bot:**
     ```bash
-    python -m src.bot
+    python -m main.py
     ```
 
 ## Contributing
